@@ -3,3 +3,5 @@ data
 devPractice.ipynb
 devPractice2.ipynb
 .env
+service-account-file.json
+staging_data
