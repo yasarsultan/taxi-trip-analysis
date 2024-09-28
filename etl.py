@@ -1,14 +1,47 @@
 import os
+import requests
+import boto3
+from google.cloud import bigquery
+from google.oauth2 import service_account
+from glob import glob
+from datetime import datetime
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def extract_load(url, file_name):
+    bucket_name = os.getenv("DATA_LAKE_BUCKET")
+    s3_path = f"{bucket_name}/{file_name}"
+
+    try:
+        response = requests.get(url)
+    except Exception as e:
+        print(f"Failed to download data from URL: {url} with error: \n{str(e)}")
+        return
+
+    if response.status_code == 200:
+        with open("data/taxitrip_data.parquet", "wb") as file:
+            file.write(response.content)
+
+        s3_client = boto3.client('s3')
+        try:
+            s3_client.put_object(Bucket=bucket_name, Key=s3_path, Body=response.content)
+            print("Data loaded successfully!")
+        except Exception as e:
+            print(f"Error in uploading file: \n{str(e)}")
+    else:
+        print(f"Failed to download data from URL: {url} with status code: {response.status_code}")
+
 
 
 def extract(spark):
-    df = spark.read.parquet("data/yellow_tripdata_2024-06.parquet")
+    df = spark.read.parquet("data/taxitrip_data.parquet")
 
     return df
 
-def transform(df):
+def transform(df, month):
     # Rename columns
     df = df.withColumnRenamed("tpep_pickup_datetime", "pickup_datetime") \
                 .withColumnRenamed("tpep_dropoff_datetime", "dropoff_datetime")
@@ -18,8 +51,8 @@ def transform(df):
     cleaned_df = df.dropna(subset=imp_columns)
 
     cleaned_df = cleaned_df.filter(
-        (F.month(F.col("pickup_datetime")) == 6) &
-        (F.month(F.col("dropoff_datetime")) == 6) &
+        (F.month(F.col("pickup_datetime")) == month) &
+        (F.month(F.col("dropoff_datetime")) == month) &
         (F.col("pickup_datetime") < F.col("dropoff_datetime")) &
         (F.col("passenger_count") > 0) & (F.col("passenger_count") < 6) &
         (F.col("trip_distance") > 0) & (F.col("trip_distance") < 100) &
@@ -33,54 +66,60 @@ def transform(df):
         .withColumn("hour_of_day", F.hour(F.col("pickup_datetime"))) \
         .withColumn("day_of_week", F.dayofweek(F.col("pickup_datetime")))
     
+    print(transformed_df.count())
     return transformed_df
 
 
+def load(df=None):
+    project_id = os.getenv("PROJECT_ID")
+    table_id = os.getenv("TABLE_ID")
 
-def load(df, table_id):
-    bigquery_options = {
-        "table": table_id,
-        "writeMethod": "direct"
-    }
+    df.repartition(1).write.parquet("staging/taxitrip_data.parquet", mode="overwrite")
+
+    file_path = glob("staging/taxitrip_data.parquet/*.parquet")[0]
     try:
-        df.write \
-            .format("bigquery") \
-            .options(**bigquery_options) \
-            .mode("overwrite") \
-            .save()
-        print("Data loaded to BigQuery")
+        credentials = service_account.Credentials.from_service_account_file("service-account-file.json")
+        client = bigquery.Client(credentials=credentials, project=project_id)
+
+        job_config = bigquery.LoadJobConfig(source_format=bigquery.SourceFormat.PARQUET,
+                                            write_disposition=bigquery.WriteDisposition.WRITE_APPEND)
+        with open(file_path, "rb") as parquet_file:
+            job = client.load_table_from_file(parquet_file, table_id,
+                                                job_config=job_config)
+            job.result()
+        print("Data loaded to BigQuery successfully!")
+
     except Exception as e:
         print(f"Error in loading data to BigQuery: \n{str(e)}")
 
-    df.repartition(1).write.parquet("staging_data/nyctaxi_data.parquet", mode="overwrite")
-
 
 def main():
-    print("Starting ETL Pipeline")
-    # Load Environment Variables
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
-    project_id = os.environ["PROJECT_ID"]
-    dataset_id = os.environ["DATASET_ID"]
+    print("ETL Pipeline Started")
+    
+    # Extract and Load Data to Data Lake
+    year, month = str(datetime.now().year), str(datetime.now().month - 2).zfill(2)
+    file_name = f"yellow_tripdata_{year}-{month}.parquet"
+    url = f"https://d37ci6vzurychx.cloudfront.net/trip-data/{file_name}"
+
+    extract_load(url, file_name)
 
     # Start SparkSession
     spark = SparkSession.builder.appName("NYCTaxiDataPipeline") \
         .config("fs.defaultFS", "file:///") \
-        .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.28.0") \
         .getOrCreate()
     
-    spark.conf.set("parentProject", project_id)
     
     # Extract Data
     print("Extracting Data")
-    data = extract(spark)
+    dataframe = extract(spark)
 
     # Transform Data
     print("Transforming Data")
-    dataframe = transform(data)
+    transformed_df = transform(dataframe, month)
 
     # Load Data
     print("Loading Data")
-    load(dataframe, dataset_id)
+    load(transformed_df)
 
     # Stop SparkSession
     spark.stop()
