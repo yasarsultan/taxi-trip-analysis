@@ -66,11 +66,10 @@ def transform(df, month):
         .withColumn("hour_of_day", F.hour(F.col("pickup_datetime"))) \
         .withColumn("day_of_week", F.dayofweek(F.col("pickup_datetime")))
     
-    print(transformed_df.count())
     return transformed_df
 
 
-def load(df=None):
+def load(df):
     project_id = os.getenv("PROJECT_ID")
     table_id = os.getenv("TABLE_ID")
 
