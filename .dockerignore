@@ -1,8 +1,9 @@
 .venv
+.git
+.gitignore
+devPractice.ipynb
+README.md
 data/*
 staging/*
-devPractice.ipynb
-.env
-service-account-file.json
 airflow/*
 !airflow/scripts

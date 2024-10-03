@@ -3,3 +3,4 @@ boto3
 pyspark
 google-cloud-bigquery
 python-dotenv
+apache-airflow
