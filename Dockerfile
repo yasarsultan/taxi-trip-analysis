@@ -1,20 +1,23 @@
-# Using the minimal python image from the docker hub
-FROM python:3.10-slim
+# Use the official Airflow image as a parent image
+FROM apache/airflow:latest
 
-# Creating a working directory for the data pipeline
-WORKDIR /data-pipeline
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copying the requirements file to the working directory
-COPY requirements.txt .
+# Set the working directory
+WORKDIR /dataPipeline
 
-# Installing the required packages for the data pipeline
+# Copy files into working directory
+COPY . /dataPipeline
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copying the data pipeline files to the working directory
-COPY . .
+# Make the airflow setup script is executable
+RUN chmod +x airflow_setup.sh
 
-# Running the ETL pipeline
-CMD ["python", "etl.py"]
-
-# Cleaning up the data to make the image lighter
-RUN rm -rf data/taxitrip_data.parquet staging/taxitrip_data.parquet
+# Set the entrypoint
+ENTRYPOINT ["airflow_setup.sh"]

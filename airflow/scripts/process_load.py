@@ -44,6 +44,9 @@ def process(month):
     
     transformed_df.repartition(1).write.parquet(f"{current_dir}/staging/taxitrip_data.parquet", mode="overwrite")
     
+    # Close SparkSession
+    spark.stop()
+    
     # return [current_dir, month, f"{current_dir}/staging/taxitrip_data.parquet"]
 
 
