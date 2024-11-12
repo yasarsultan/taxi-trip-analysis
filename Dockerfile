@@ -1,12 +1,6 @@
 # Use the official Airflow image as a parent image
 FROM apache/airflow:latest
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # Set the working directory
 WORKDIR /dataPipeline
 
@@ -16,8 +10,18 @@ COPY . /dataPipeline
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Switch user to modify file permissions
+USER root
+
 # Make the airflow setup script is executable
-RUN chmod +x airflow_setup.sh
+RUN chmod +x /dataPipeline/airflow_setup.sh
+
+# Switch back to normal user
+USER airflow
+
+# Expose airflow webserver port so that it can be accessible in local machine web browser
+EXPOSE 8080
 
 # Set the entrypoint
-ENTRYPOINT ["airflow_setup.sh"]
+ENTRYPOINT ["/dataPipeline/airflow_setup.sh"]
+CMD ["bash"]

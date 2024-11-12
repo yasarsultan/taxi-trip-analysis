@@ -9,6 +9,10 @@ logger = getLogger(__name__)
 
 
 year, month = str(datetime.now().year), str(datetime.now().month - 2).zfill(2)
+# If you want to run script at start of every month uncomment the next second line
+# Because source database get updated in last week of every month.
+# year, month = str(datetime.now().year), str(datetime.now().month - 3).zfill(2)
+
 file_name = f"yellow_tripdata_{year}-{month}.parquet"
 
 # A function to check the output of each task

@@ -75,25 +75,26 @@ batch-datapipeline/
    ```
    - Add Google Cloud credentials file in project directory with name ```service-account-file.json```
 
-3. Build the Docker image:
+
+## Usage
+### Approach 1:
+1. Build the Docker image:
    ```
    docker build -t nyc-taxitrip-datapipeline .
    ```
 
-## Usage
-### Approach 1:
-1. Start the Airflow container:
+2. Start the Airflow container:
    ```
-   docker run -p 8080:8080 nyc-taxi-datapipeline
+   docker run -it -p 8080:8080 nyc-taxitrip-datapipeline
    ```
 
-2. Access the Airflow web interface at `http://localhost:8080`. Use the following credentials:
+3. Access the Airflow web interface at `http://localhost:8080`. Use the following credentials:
    - Username: admin
    - Password: admin
 
-3. In the Airflow UI, enable the `batch_datapipeline` DAG.
+4. In the Airflow UI, enable the `batch_datapipeline` DAG.
 
-4. The pipeline will run on monthly basis, processing the data of two months ago. You can also trigger a manual run from the Airflow UI.
+5. The pipeline will run on monthly basis, processing the data of two months ago. You can also trigger a manual run from the Airflow UI.
 
 ### Approach 2: 
 - *If you wish to run data pipeline manually without Airflow and Docker, follow these steps:*
